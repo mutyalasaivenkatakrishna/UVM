@@ -16,7 +16,8 @@ module i2c_wrapper #(
     output logic                    pslverr,
 
     // I2C Interface
-    inout  wire                     sda,
+    input  logic                     sda_in,
+    output logic                     sda_out,
     output wire                     scl
 );
 // Internal Signals
@@ -76,14 +77,15 @@ i2c_master i2c (
 
 
     // Multi-byte ports
-    .reg_addr       (wire_reg_addr),
+    .reg_addr (wire_reg_addr[7:0]),
 
     .din       (wire_tx_data),
     .dout         (wire_rx_data),
 
 
     // I2C pins
-    .sda            (sda),
+    .sda_in           (sda_in),
+    .sda_out           (sda_out),
     .scl            (scl),
 
     // Status

@@ -120,7 +120,7 @@ assert property (p_start_to_first_ack)
 else
   $error("[%0t] I2C ASSERTION FAILED: START not followed by 8 bits + ACK/NACK", $time);
 
-cov_1 : cover property(p_start_to_first_ack);
+//cov_1 : cover property(p_start_to_first_ack);
 
 
 property p_ack0_continue_next_byte;
@@ -171,7 +171,7 @@ assert property (p_no_repeated_start_before_stop)
 else
   $error("[%0t] I2C ASSERTION FAILED: Illegal repeated START before STOP", $time);
 
-cov_4 : cover property(p_no_repeated_start_before_stop);
+//cov_4 : cover property(p_no_repeated_start_before_stop);
 
 
 
@@ -189,7 +189,7 @@ assert property (p_no_stop_before_first_ack)
 else
   $error("[%0t] I2C ASSERTION FAILED: SDA is changed while scl is high", $time);
 
-cov_5 : cover property(p_no_stop_before_first_ack);
+//cov_5 : cover property(p_no_stop_before_first_ack);
 
 
 
@@ -210,7 +210,7 @@ else
   $error("[%0t] I2C ASSERTION FAILED: ACK/NACK flow violation",
          $time);
 
-cov_6 : cover property(p_i2c_ack_nack_flow);
+//cov_6 : cover property(p_i2c_ack_nack_flow);
 
 
 
@@ -247,331 +247,6 @@ else
     $error("[%0t] I2C ASSERTION FAILED: SDA/SCL is found to be unknown", $time);
 
 cov_8 : cover property(no_unknown_xorz);
-
-
-/*
-sequence i2c_start_cond;
-  $fell(sda) && scl;
-endsequence
-
-sequence i2c_stop_cond;
-  $rose(sda) && scl;
-endsequence
-            
-property i2c_count_based_check;
-  int bit_cnt;
-
-  @(posedge clk) disable iff (rst)
-
-  // Detect START and initialize counter
-  (i2c_start_cond, bit_cnt = 0)
-  |->
-
-  (
-    // First byte: 8 data bits
-    (
-      @(negedge scl)
-     // ##0 (scl == 1'b0, bit_cnt = bit_cnt + 1)
-     $stable(sda) && scl
-    )[*8]
-
-    // 9th clock: ACK/NACK
-    @(posedge scl)
-
-    ##0
-    (
-      // NACK case: SDA = 1, then STOP should come
-      (
-        (sda == 1'b1)
-        ##[0:$] i2c_stop_cond
-      )
-
-      or
-
-      // ACK case: SDA = 0, next byte continues
-      (
-        (sda == 1'b0, bit_cnt = 0)
-
-        // Next byte: 8 data bits
-        ##0
-        (
-          ##[0:$] $fell(scl)
-          ##0 (scl == 1'b0, bit_cnt = bit_cnt + 1)
-        )[*8]
-
-        // Next ACK/NACK
-        ##[0:$] $fell(scl)
-
-        // After this, STOP should come
-        ##[0:$] i2c_stop_cond
-      )
-    )
-  );
-
-endproperty
-
-assert property (i2c_count_based_check)
-else
-    $error($time,"i2c_protocol assertion failed");
-
-*/
-/*
-////////////////////////////////////////////////////////////
-// I2C PURE SVA ASSERTIONS
-// No procedural block
-// No timeout parameter
-////////////////////////////////////////////////////////////
-
-// START = SDA falling while SCL high
-sequence s_i2c_start;
-  $fell(sda_in) && scl;
-endsequence
-
-// STOP = SDA rising while SCL high
-sequence s_i2c_stop;
-  $rose(sda_in) && scl;
-endsequence
-
-// SCL falling edge
-sequence s_scl_fall;
-  $fell(scl);
-endsequence
-
-// One I2C byte = 8 SCL falling edges
-sequence s_i2c_byte_done;
-  $fell(scl)[=8];
-endsequence
-
-// ACK/NACK phase = next SCL falling edge after byte
-// SDA should be known during ACK/NACK
-sequence s_i2c_ack_phase;
-  ##1 $fell(scl)[->1] ##0 !$isunknown(sda_in);
-endsequence
-
-////////////////////////////////////////////////////////////
-// SDA DATA STABILITY
-// SDA should not change while SCL is HIGH
-// except START and STOP
-////////////////////////////////////////////////////////////
-
-property p_i2c_data_stable;
-  @(posedge clk)
-  disable iff (rst)
-
-  (scl && $changed(sda_in)) |->
-  (
-    ($fell(sda_in) && scl) || ($rose(sda_in) && scl)
-  );
-
-endproperty
-
-a_i2c_data_stable:
-assert property (p_i2c_data_stable)
-else
-  $error("[%0t] I2C ASSERTION FAILED: SDA changed while SCL HIGH without START/STOP",
-         $time);
-
-  ////////////////////////////////////////////////////////////
-// I2C SINGLE BYTE TRANSACTION CHECK
-//
-// START
-// 8 SCL falling edges  -> address byte done
-// next SCL falling edge -> address ACK/NACK
-//
-// if address NACK = 1:
-//      STOP
-//
-// if address ACK = 0:
-//      8 SCL falling edges  -> data byte done
-//      next SCL falling edge -> data ACK/NACK
-//      STOP
-////////////////////////////////////////////////////////////
-
-property p_i2c_start_addr_ack_data_ack_stop;
-  @(posedge clk)
-  disable iff (rst)
-
-  s_i2c_start
-  |->
-  (
-    ##1 s_i2c_byte_done
-    ##0 s_i2c_ack_phase
-
-    ##0
-    (
-      // Case 1: Address NACK, SDA = 1
-      // Then transaction should go to STOP
-      (
-        (sda_in == 1'b1)
-        ##[1:$] s_i2c_stop
-      )
-
-      or
-
-      // Case 2: Address ACK, SDA = 0
-      // Then continue data byte, ACK/NACK, then STOP
-      (
-        (sda_in == 1'b0)
-        ##1 s_i2c_byte_done
-        ##0 s_i2c_ack_phase
-        ##[1:$] s_i2c_stop
-      )
-    )
-  );
-
-endproperty
-
-a_i2c_start_addr_ack_data_ack_stop:
-assert property (p_i2c_start_addr_ack_data_ack_stop)
-else
-  $error("[%0t] I2C ASSERTION FAILED: START/address ACK/data ACK/STOP flow violated",
-         $time);
-
-
-
-property p_scl_no_xz;
-   @(posedge clk)
-   disable iff(rst)
-
-   !$isunknown(scl) &&  !$isunknown(sda);
-endproperty
-
-a_scl_no_xz:
-assert property(p_scl_no_xz)
-else
-   $error("SCL contains X/Z"); 
-
-*/
-
-
-
-
-
-/*property p_start_cond;
-      @(posedge clk)
-      disable iff(rst)
-      $fell(sda) && scl;
-   endproperty
-
-   a_start_cond:
-   assert property(p_start_cond)
-   else
-       $error($time,"start failed"); */
-/*
- property p_i2c_start_condition;
-  @(posedge clk) disable iff (rst)
-  $fell(sda_in) && (scl == 1'b1);
-endproperty
-
-cover property (p_i2c_start_condition);*/
- 
-
-/*
-property p_i2c_start;
-  @(posedge clk) disable iff (rst)
-
-  1'b1 |->
-    //  START condition:
-    // SDA falling while SCL high is allowed only when bus is not active
-    ((!($fell(sda_in) && scl)) || (!busy)); 
-  ($fell(sda_in) && scl) |-> !busy;
-
-        endproperty
-
-assert property (p_i2c_start)
-  else $error("I2C ASSERTION FAILED: START protocol violation");
-
-
-    property p_i2c_noxz;
-  @(posedge clk) disable iff (rst)
-
-  1'b1 |->
-
-    //  During active transfer, SDA/SCL should not be X/Z
-    (busy && (!$isunknown(sda_in) && !$isunknown(scl))); 
-     busy |-> (!$isunknown(sda_in) &&
-              !$isunknown(scl));
-
-    endproperty
-
-assert property (p_i2c_noxz)
-  else $error("I2C ASSERTION FAILED: X/Z protocol violation");
-
-
-
-property p_i2c_data;
-  @(posedge clk) disable iff (rst)
-
- // 1'b1 |->
-
-    //  DATA stable rule:
-    // During active transfer, if SCL is high, SDA should not change.
-    !(busy && scl && $changed(sda_in) && !$rose(sda_in));
-    
-      endproperty
-
-assert property (p_i2c_data)
-  else $error("I2C ASSERTION FAILED: DATA protocol violation");
-
-*/
- /*   
-property p_i2c_ack;
-  @(posedge clk) disable iff (rst)
-
- // 1'b1 |->
-
-    //  ACK/NACK on 9th clock:
-  //  i2c_active |-> ((scl_cnt == 4'd8) &&
-     // (!$isunknown(sda_in)));   
-
-   //  (busy && (scl_cnt == 4'd8) && scl)  |-> !$isunknown(sda);
-   
-    endproperty
-
-assert property (p_i2c_ack)
-   $display("ACK DETECTED at %0t", $time);
-  else $error("I2C ASSERTION FAILED: ACK protocol violation");
-
-
-property p_i2c_stop;
-  @(posedge clk) disable iff (rst)
-
- // 1'b1 |->
-
-    //  STOP condition:
-    // STOP is SDA rising while SCL high.
-    (!(i2c_active && $rose(sda_in) && scl) ||
-      (i2c_active)); 
-// i2c_active
- //  |-> !($rose(sda_in) && scl);
-  (
-      busy &&
-      $rose(sda_in) &&
-      scl
-   )|-> (scl_cnt == 4'd0);
-
-   endproperty
-   
-assert property (p_i2c_stop)
-  else $error("I2C ASSERTION FAILED: STOP protocol violation");
-*/
-
-/*
-property p_i2c_bus_idle;
-  @(posedge clk) disable iff (rst)
-  (!busy) |-> (sda_in == 1'b1 && scl == 1'b1);
-endproperty */
-
-
-
-
-//i2c_coverage: cover property (p_i2c_protocol_check)
-//$display("coverage is passed");
-
-  
-/*assert property (p_i2c_bus_idle)
-  else $error("[%0t] I2C ASSERTION FAILED: Bus not idle. SDA=%0b SCL=%0b",
-              $time, sda_in, scl); */
 
 
 endinterface

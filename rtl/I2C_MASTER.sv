@@ -6,7 +6,8 @@ module i2c_master (
     input  logic        op,         // 0=write, 1=read
     input  logic        mode_sel,   // 0=1-byte, 1=4-byte
     input  logic [7:0]  reg_addr,   // 8-bit register address
-    inout  wire         sda,
+    input logic        sda_in,
+    output logic sda_out,
     output logic        scl,
     input  logic [31:0] din,
     output logic [31:0] dout,
@@ -56,8 +57,7 @@ module i2c_master (
     // Using this safe sampled version prevents X propagation
     // into rx_data shift register.
     // -------------------------------------------------------
-    wire sda_in;
-    assign sda_in = sda;
+   
  
     // -------------------------------------------------------
     // FSM states
@@ -141,11 +141,12 @@ module i2c_master (
                 // IDLE: wait for new transaction
                 // -------------------------------------------
                 IDLE: begin
-                    done    <= 1'b0;
                     ack_err <= 1'b0;
                     scl_t   <= 1'b1;
                     sda_t   <= 1'b1;
                     sda_en  <= 1'b0;
+                        //done    <= 1'b0;
+                        //busy       <= 1'b1;
                     if (newd) begin
                         sh_addr_w  <= {addr, 1'b0};
                         sh_addr_r  <= {addr, 1'b1};
@@ -154,6 +155,7 @@ module i2c_master (
                         rx_data    <= 32'd0;
                         byte_idx   <= 2'd0;
                         bitcount   <= 4'd0;
+                        done    <= 1'b0;
                         busy       <= 1'b1;
                         state      <= START;
                     end else begin
@@ -483,7 +485,7 @@ $display("[%0t] LATCHING rx_data=%h into dout_r",
                         sda_en <= 1'b0;
                         busy   <= 1'b0;
                         done   <= 1'b1;
-                        state  <= IDLE;
+                       state  <= IDLE;
                     end
                 end
  
@@ -499,7 +501,7 @@ $display("[%0t] LATCHING rx_data=%h into dout_r",
     //   sda_en=1 & sda_t=1  ->  high-Z (external RPU pulls high)
     //   sda_en=0             ->  high-Z (slave may drive freely)
     // -------------------------------------------------------
-    assign sda  = (sda_en && (sda_t == 1'b0)) ? 1'b0 : 1'bz;
+    assign sda_out  = (sda_en && (sda_t == 1'b0)) ? 1'b0 : 1'b1;
     assign scl  = scl_t;
  
     // dout is registered and only updates when a read completes
