@@ -50,7 +50,8 @@ covergroup cp1 ();
 
     bins low_range  = {[1:255]};
     bins mid_range  = {[256:65535]};
-    bins high_range = default;
+    //bins high_range = default;
+    bins high_range = {[65536:'hffff]};
   }
 
   // READ DATA
@@ -63,7 +64,8 @@ covergroup cp1 ();
 
     bins low_range  = {[1:255]};
     bins mid_range  = {[256:65535]};
-    bins high_range = default;
+    //bins high_range = default;
+    bins high_range = {[65536:'hffff]};
   }
 
   // CROSS COVERAGE

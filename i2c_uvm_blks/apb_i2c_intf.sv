@@ -1,8 +1,5 @@
     parameter ADDR_WIDTH=8;	      //address width
 	parameter DATA_WIDTH=32;	      //data width
-	parameter SLV_REG_DEPTH=16;	      //slave register memory depth
-	localparam BYTES_PER_WORD= DATA_WIDTH/8;
-	localparam TOTAL_BYTES=SLV_REG_DEPTH * BYTES_PER_WORD;
 
 `include "uvm_macros.svh"
 import uvm_pkg::*;
@@ -67,20 +64,9 @@ endclocking
 
 modport mod_s_mon (clocking cb_s_mon);
 
-modport drv_m (
+modport drv_m (clocking drv_cb );
 
-        input pslverr,
-        input pready,
-        input prdata,
-        output psel,
-        output pwrite,
-        output penable,
-        output paddr,
-        output pwdata
-
-        );
-
-
+/*
 //assertions
 
 sequence i2c_start;
@@ -348,7 +334,7 @@ else
     else begin
         `uvm_error("APB_PREADY","PSEL & PENABLE NOT HIGH UNTIL PREADY")
     end
-
+*/
 endinterface
 
 
