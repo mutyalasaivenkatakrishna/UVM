@@ -1,31 +1,31 @@
 module i2c_master (
-    input  logic        clk,
-    input  logic        rst,
-    input  logic        newd,
-    input  logic [6:0]  addr,
-    input  logic        op,         // 0=write, 1=read
-    input  logic        mode_sel,   // 0=1-byte, 1=4-byte
-    input  logic [7:0]  reg_addr,   // 8-bit register address
-    input logic        sda_in,
-    output logic sda_out,
-    output logic        scl,
-    input  logic [31:0] din,
-    output logic [31:0] dout,
-    output logic        busy,
-    output logic        ack_err,
-    output logic        done
+    input   clk,
+    input   rst,
+    input   newd,
+    input  [6:0]  addr,
+    input   op,         // 0=write, 1=read
+    input   mode_sel,   // 0=1-byte, 1=4-byte
+    input  [7:0]  reg_addr,   // 8-bit register address
+    input  sda_in,
+    output sda_out,
+    output  scl,
+    input  [31:0] din,
+    output [31:0] dout,
+    output reg busy,
+    output reg ack_err,
+    output reg done
 );
  
     // -------------------------------------------------------
     // Clock divider: 40 MHz / 100 kHz I2C
     // 1 I2C bit = 400 sys clocks = 4 x 100-clock quarters
     // -------------------------------------------------------
-    localparam int CLK_DIV1 = (40_000_000 / 100_000) / 4;  // 100
- 
-    localparam logic [8:0] CLK1 = 9'(CLK_DIV1     - 1);   //  99
-    localparam logic [8:0] CLK2 = 9'(CLK_DIV1 * 2 - 1);   // 199
-    localparam logic [8:0] CLK3 = 9'(CLK_DIV1 * 3 - 1);   // 299
-    localparam logic [8:0] CLK4 = 9'(CLK_DIV1 * 4 - 1);   // 399
+    parameter  CLK_DIV1 = (40_000_000 / 100_000) / 4;  // 100
+   
+parameter  [8:0] CLK1 = CLK_DIV1 - 1;   //99
+parameter  [8:0] CLK2 = (CLK_DIV1 * 2) - 1;  //199
+parameter  [8:0] CLK3 = (CLK_DIV1 * 3) - 1;  //299
+parameter  [8:0] CLK4 = (CLK_DIV1 * 4) - 1;  //399
  
     // -------------------------------------------------------
     // Quarter-period pulse generator
@@ -36,8 +36,9 @@ module i2c_master (
     // -------------------------------------------------------
     reg [8:0] count1;
     reg [1:0] pulse;
+   
  
-    always_ff @(posedge clk) begin
+    always @(posedge clk) begin
         if (rst || !busy) begin
             pulse  <= 2'd0;
             count1 <= 9'd0;
@@ -58,9 +59,7 @@ module i2c_master (
     // into rx_data shift register.
     // -------------------------------------------------------
    
- 
-    // -------------------------------------------------------
-    // FSM states
+     // FSM states
     //
     // WRITE: START->WR_SLVADDR(W)->ACK_SA->WR_REGADDR->ACK_RA
     //        ->WR_DATA->ACK_WR->[repeat for 4-byte]->STOP
@@ -68,22 +67,20 @@ module i2c_master (
     // READ:  START->WR_SLVADDR(R)->ACK_SA->WR_REGADDR->ACK_RA
     //        ->RD_DATA->[MSTR_ACK->RD_DATA repeat]->MSTR_NACK->STOP
     // -------------------------------------------------------
-    typedef enum logic [3:0] {
-        IDLE      = 4'd0,
-        START     = 4'd1,
-        WR_SLVADDR= 4'd2,
-        ACK_SA    = 4'd3,
-        WR_REGADDR= 4'd4,
-        ACK_RA    = 4'd5,
-        WR_DATA   = 4'd6,
-        ACK_WR    = 4'd7,
-        RD_DATA   = 4'd8,
-        MSTR_ACK  = 4'd9,
-        MSTR_NACK = 4'd10,
-        STOP      = 4'd11
-    } state_t;
- 
-    state_t state;
+parameter [3:0] IDLE       = 4'd0;
+parameter [3:0] START      = 4'd1;
+parameter [3:0] WR_SLVADDR = 4'd2;
+parameter [3:0] ACK_SA     = 4'd3;
+parameter [3:0] WR_REGADDR = 4'd4;
+parameter [3:0] ACK_RA     = 4'd5;
+parameter [3:0] WR_DATA    = 4'd6;
+parameter [3:0] ACK_WR     = 4'd7;
+parameter [3:0] RD_DATA    = 4'd8;
+parameter [3:0] MSTR_ACK   = 4'd9;
+parameter [3:0] MSTR_NACK  = 4'd10;
+parameter [3:0] STOP       = 4'd11;
+
+reg [3:0] state;
  
     reg        scl_t;
     reg        sda_t;
@@ -116,7 +113,7 @@ module i2c_master (
     // -------------------------------------------------------
     // Main FSM
     // -------------------------------------------------------
-    always_ff @(posedge clk) begin
+    always @(posedge clk) begin
         if (rst) begin
             state      <= IDLE;
             scl_t      <= 1'b1;
@@ -195,8 +192,8 @@ module i2c_master (
                             2'd1: begin
                                 scl_t <= 1'b0;
                                 sda_t <= (op == 1'b0)
-                                         ? sh_addr_w[7 - bitcount[2:0]]
-                                         : sh_addr_r[7 - bitcount[2:0]];
+       ? sh_addr_w[3'd7 - bitcount[2:0]]
+       : sh_addr_r[3'd7 - bitcount[2:0]];
                             end
                             2'd2: begin scl_t <= 1'b1; end
                             2'd3: begin scl_t <= 1'b1; end
@@ -251,7 +248,7 @@ module i2c_master (
                             2'd0: begin scl_t <= 1'b0; end
                             2'd1: begin
                                 scl_t <= 1'b0;
-                                sda_t <= sh_regaddr[7 - bitcount[2:0]];
+                                sda_t <= sh_regaddr[3'd7 - bitcount[2:0]];
                             end
                             2'd2: begin scl_t <= 1'b1; end
                             2'd3: begin scl_t <= 1'b1; end
@@ -311,7 +308,7 @@ module i2c_master (
                             2'd0: begin scl_t <= 1'b0; end
                             2'd1: begin
                                 scl_t <= 1'b0;
-                                sda_t <= tx_byte[7 - bitcount[2:0]];
+                                sda_t <= tx_byte[3'd7 - bitcount[2:0]];
                             end
                             2'd2: begin scl_t <= 1'b1; end
                             2'd3: begin scl_t <= 1'b1; end
